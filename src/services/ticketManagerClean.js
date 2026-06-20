@@ -78,11 +78,21 @@ function collectTicketViewers(config) {
   return { roleIds: [...roleIds], userIds: [...userIds] };
 }
 
-function buildTicketPermissionOverwrites(guild, ticketOwnerId, config) {
+/**
+ * Discord.js only accepts overwrites for cached Role/Member objects (or IDs that
+ * are already in cache). Skip invalid or missing roles so ticket creation never
+ * crashes on a bad config ID.
+ */
+async function buildTicketPermissionOverwrites(guild, ticketOwner, config) {
+  const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+  if (!me) {
+    throw new Error('Bot member is not available in this guild.');
+  }
+
   const overwrites = [
-    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
     {
-      id: ticketOwnerId,
+      id: ticketOwner,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
@@ -91,7 +101,7 @@ function buildTicketPermissionOverwrites(guild, ticketOwnerId, config) {
       ],
     },
     {
-      id: guild.members.me.id,
+      id: me,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
@@ -102,10 +112,16 @@ function buildTicketPermissionOverwrites(guild, ticketOwnerId, config) {
 
   const { roleIds, userIds } = collectTicketViewers(config);
 
-  for (const roleId of roleIds) overwrites.push({ id: roleId, allow: STAFF_CHANNEL_PERMS });
+  for (const roleId of roleIds) {
+    const role = guild.roles.cache.get(roleId);
+    if (role) overwrites.push({ id: role, allow: STAFF_CHANNEL_PERMS });
+  }
+
   for (const userId of userIds) {
-    if (userId === ticketOwnerId) continue;
-    overwrites.push({ id: userId, allow: STAFF_CHANNEL_PERMS });
+    if (userId === ticketOwner.id) continue;
+    let viewer =
+      guild.members.cache.get(userId) ?? (await guild.members.fetch(userId).catch(() => null));
+    if (viewer) overwrites.push({ id: viewer, allow: STAFF_CHANNEL_PERMS });
   }
 
   return overwrites;
@@ -139,7 +155,7 @@ function checkOpenCooldown(guildId, userId) {
   const cooldown = store.getTicketCooldown(guildId, userId);
   if (!cooldown || cooldown.until <= Date.now()) return null;
   const minutes = Math.ceil((cooldown.until - Date.now()) / 60000);
-  return `Wait **${minutes} minute(s)** before opening another purchase ticket (${cooldown.reason || 'cooldown'}.`;
+  return `Wait **${minutes} minute(s)** before opening another purchase ticket (${cooldown.reason || 'cooldown'}).`;
 }
 
 function applyPurchaseCooldown(guildId, userId, reason) {
@@ -228,7 +244,7 @@ async function createTicket(guild, member, categoryId = 'payments', client) {
     }
 
     const initialStage = category.requiresPayment ? STAGES.AWAITING_PRODUCT : STAGES.AWAITING_STAFF;
-    const overwrites = buildTicketPermissionOverwrites(guild, member.id, config);
+    const overwrites = await buildTicketPermissionOverwrites(guild, member, config);
 
     const channel = await guild.channels.create({
       name: ticketChannelName(initialStage, member.user.username, categoryId),
