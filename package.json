@@ -1,0 +1,20 @@
+{
+  "name": "pulsebot3",
+  "version": "1.0.0",
+  "description": "Pulse Studio Discord bot — tickets, shop, security, Components v2",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["discord", "bot", "tickets", "pulse"],
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.4.7"
+  }
+}
