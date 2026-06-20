@@ -1,12 +1,14 @@
 const store = require('../config/store');
-const ticketManager = require('./ticketManager');
+const ticketManager = require('./ticketManagerClean');
 
 const { STAGES } = ticketManager;
 
 const INACTIVE_STAGES = new Set([
+  STAGES.AWAITING_PRODUCT,
   STAGES.SELECT_PAYMENT,
   STAGES.AWAITING_PAYMENT,
   STAGES.AWAITING_PROOF,
+  STAGES.AWAITING_STAFF,
 ]);
 
 async function processInactiveTickets(client) {

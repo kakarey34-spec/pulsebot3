@@ -5,6 +5,11 @@ const PROMO_TYPES = {
   discount_percent: 'discount_percent',
 };
 
+const PROMO_AUDIENCE = {
+  general: 'general',
+  access_only: 'access_only',
+};
+
 function normalizeCode(code) {
   return String(code || '')
     .trim()
@@ -41,7 +46,7 @@ function listPromos(guildId) {
   return Object.values(getPromoMap(guildId)).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-function validatePromo(guildId, code, _member = null) {
+function validatePromo(guildId, code, member = null) {
   const key = normalizeCode(code);
   if (!key) return { error: 'Enter a valid promo code.' };
 
@@ -52,6 +57,15 @@ function validatePromo(guildId, code, _member = null) {
   }
   if (promo.maxUses != null && promo.uses >= promo.maxUses) {
     return { error: 'This promo code has reached its use limit.' };
+  }
+
+  const audience = promo.audience || PROMO_AUDIENCE.general;
+  if (audience === PROMO_AUDIENCE.access_only) {
+    if (!member) return { error: 'This promo code is only for members with active access.' };
+    const { hasPurchaserRole } = require('../utils/permissions');
+    if (!hasPurchaserRole(member)) {
+      return { error: 'This promo code is only for members with active access.' };
+    }
   }
 
   return { ok: true, promo };
@@ -98,6 +112,7 @@ function createPromoRecord(guildId, data) {
     value,
     maxUses: data.maxUses ?? null,
     validDays: data.validDays ?? null,
+    audience: data.audience || PROMO_AUDIENCE.general,
     uses: 0,
     expiresAt,
     createdAt: Date.now(),
@@ -161,9 +176,9 @@ function buildAmountLines(product, promo, pricing) {
   return `**You need to send:** ${pricing.formattedDue}`;
 }
 
-function resolveTicketPromo(guildId, ticket) {
+function resolveTicketPromo(guildId, ticket, member = null) {
   if (!ticket?.promoCode) return { promo: null };
-  const validated = validatePromo(guildId, ticket.promoCode);
+  const validated = validatePromo(guildId, ticket.promoCode, member);
   if (validated.error) return { error: validated.error };
   return { promo: validated.promo };
 }
@@ -183,6 +198,7 @@ async function announcePromoCreated(client, guildId, promo) {
 
 module.exports = {
   PROMO_TYPES,
+  PROMO_AUDIENCE,
   normalizeCode,
   getPromo,
   listPromos,

@@ -24,12 +24,27 @@ function createSlashCommandHandler(client) {
   client.commands = commands;
 
   async function deployCommands() {
+    // Only deploy what you actually want on Pulsebot.
+    const allowed = new Set([
+      'ticket',
+      'product',
+      'promo',
+      'rep',
+      'giveaway',
+      'ban',
+      'kick',
+      'mute',
+      'unmute',
+      'clear',
+    ]);
     const all = [...commands.values()];
     const token = process.env.DISCORD_TOKEN;
     const clientId = process.env.CLIENT_ID || client.user.id;
     const guildId = process.env.GUILD_ID;
     const rest = new REST({ version: '10' }).setToken(token);
-    const body = all.map((c) => c.data.toJSON());
+    const body = all
+      .filter((c) => allowed.has(c.data?.name))
+      .map((c) => c.data.toJSON());
 
     if (guildId) {
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });

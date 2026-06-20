@@ -1,42 +1,81 @@
-const { AttachmentBuilder } = require('discord.js');
 const store = require('../config/store');
-const { buildTicketMessage, buildSimpleV2 } = require('./display');
+const { buildTicketMessage, buildSimpleV2, buildCounterLine } = require('./display');
 const { BRAND } = require('./brand');
 const { buildPaypalInstructions, buildPaysafeInstructions, parsePrice } = require('./paysafe');
 
-function buildTicketWelcome(guildId, category, member, product = null) {
-  const user = member.toString();
-  const cat = category || { id: 'support', label: 'Support' };
-  const waitNote = 'Staff will respond when available. Keep all messages in this lane.';
+function stageInstruction(stage, categoryId) {
+  if (categoryId === 'payments') {
+    if (stage === 'awaiting_product') {
+      return [
+        '**Step 1:** Send your **Product ID** in ONE message.',
+        'Example: `PULSE-0001`',
+      ].join('\n');
+    }
+    if (stage === 'select_payment') {
+      return '**Step 2:** Choose your payment method using the buttons below.';
+    }
+    if (stage === 'awaiting_payment') {
+      return 'Send the payment exactly as shown, then click **Payment sent ✅**.';
+    }
+    if (stage === 'awaiting_proof') {
+      return '**Step 3:** Upload your payment proof (screenshot, receipt, or transaction ID).';
+    }
+    if (stage === 'awaiting_approval') {
+      return 'Your proof is now in review. Thanks for waiting.';
+    }
+    if (stage === 'approved') {
+      return 'Your order has been approved.';
+    }
+    if (stage === 'denied') {
+      return 'Your payment was declined. Please contact staff or open a new lane.';
+    }
+    return 'Please follow the next steps in this lane.';
+  }
 
-  if (cat.id === 'payments' && product) {
+  // support/partner
+  if (stage === 'awaiting_staff') return 'Describe your issue and staff will respond when available.';
+  if (stage === 'awaiting_approval') return 'Your message is being reviewed by staff.';
+  return 'Please message staff inside this lane.';
+}
+
+function buildTicketWelcome(guildId, categoryId, userId, { stage, product = null } = {}) {
+  const counts = store.countOpenTicketsByCategory(guildId);
+  const counters = `**Live counters:**\n${buildCounterLine(counts)}`;
+
+  if (categoryId === 'payments') {
+    const productBlock = product
+      ? ['**Selected Product:**', `• Name: ${product.name}`, `• ID: \`${product.id}\``, `• Price: ${product.price}`].join(
+          '\n'
+        )
+      : '';
+
     return buildTicketMessage(
       '◆ Purchase lane opened',
       [
-        `${user} — you're in a **private** purchase channel.`,
+        `<@${userId}> — you’re in a **private** purchase channel.`,
         '',
-        `**Product:** ${product.name}`,
-        `**ID:** \`${product.id}\``,
-        `**Price:** ${product.price}`,
+        productBlock || '**Product not selected yet** — use the step below.',
         '',
-        '**Next:** Choose a payment method below.',
+        stageInstruction(stage, 'payments'),
         '',
-        waitNote,
-      ].join('\n'),
+        counters,
+      ].filter(Boolean).join('\n'),
       { accent: BRAND.pulse }
     );
   }
 
-  if (cat.id === 'partner') {
+  if (categoryId === 'partner') {
     return buildTicketMessage(
       '◆ Partner lane opened',
       [
-        `${user} — tell us about your partnership idea.`,
+        `<@${userId}> — tell us about your partnership inquiry.`,
         '',
-        '**Include:** your brand/project, audience, and what you\'re looking for.',
+        '**Include:** your brand/project, audience, and what you’re looking for.',
         '',
-        waitNote,
-      ].join('\n'),
+        stageInstruction(stage, 'partner'),
+        '',
+        counters,
+      ].filter(Boolean).join('\n'),
       { accent: BRAND.accent }
     );
   }
@@ -44,12 +83,14 @@ function buildTicketWelcome(guildId, category, member, product = null) {
   return buildTicketMessage(
     '◆ Support lane opened',
     [
-      `${user} — you're connected to **Pulse Studio Support**.`,
+      `<@${userId}> — you’re connected to **Pulse Studio Support**.`,
       '',
       '**Include:** a clear summary, steps you tried, and any relevant screenshots.',
       '',
-      waitNote,
-    ].join('\n'),
+      stageInstruction(stage, 'support'),
+      '',
+      counters,
+    ].filter(Boolean).join('\n'),
     { accent: BRAND.pulse }
   );
 }

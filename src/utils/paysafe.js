@@ -3,10 +3,16 @@ const PAYSAFE_TIERS = [5, 10, 25, 50, 100];
 function roundToPaysafeTier(amountEur) {
   const value = Number(amountEur);
   if (!Number.isFinite(value) || value <= 0) return PAYSAFE_TIERS[0];
-  for (const tier of PAYSAFE_TIERS) {
-    if (value <= tier) return tier;
+  let best = PAYSAFE_TIERS[0];
+  let bestDiff = Math.abs(value - best);
+  for (const tier of PAYSAFE_TIERS.slice(1)) {
+    const diff = Math.abs(value - tier);
+    if (diff < bestDiff) {
+      best = tier;
+      bestDiff = diff;
+    }
   }
-  return PAYSAFE_TIERS[PAYSAFE_TIERS.length - 1];
+  return best;
 }
 
 function formatEur(amount) {
