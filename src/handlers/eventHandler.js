@@ -7,10 +7,15 @@ function loadEvents(client) {
 
   for (const file of files) {
     const event = require(path.join(eventsPath, file));
+    const run = (...args) => {
+      Promise.resolve(event.execute(...args, client)).catch((err) => {
+        console.error(`Event ${event.name} error:`, err);
+      });
+    };
     if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args, client));
+      client.once(event.name, run);
     } else {
-      client.on(event.name, (...args) => event.execute(...args, client));
+      client.on(event.name, run);
     }
   }
 }
